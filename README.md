@@ -4,6 +4,8 @@ An interactive demo of CSS container queries. Drag the handles to resize the
 `.track` container and watch a toy train react to its own size, not the
 viewport's.
 
+![The full train at 1080 × 440: engine, two double-decker passenger cars, a dining car, and the caboose, with smoke rising and every breakpoint mark lit, in front of big "Container Queries" type.](docs/screenshot.png)
+
 - **Wider** couples on more cars at 480, 680, 880, and 1050px, and the engine's
   smoke trail grows and leans back the more cars it pulls.
 - **Taller** adds smoke and kitchen steam at 310px, and a second deck at 390px.
