@@ -22,6 +22,11 @@
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);          /* quint: enter + exit */
   --ease-in-out: cubic-bezier(0.645, 0.045, 0.355, 1); /* cubic: on-screen morphs */
   --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);       /* small overshoot, for the playful bits */
+  /* Real damped springs, sampled into linear(). pop overshoots ~16%, soft ~7%. */
+  --spring-pop: linear(0, 0.059, 0.204, 0.392, 0.591, 0.773, 0.925, 1.039, 1.114, 1.153, 1.163, 1.152, 1.128, 1.097, 1.064, 1.035, 1.011, 0.992, 0.981, 0.975, 0.973, 0.975, 0.98, 0.985, 0.99, 0.995, 0.999, 1.001, 1.003, 1.004, 1.004, 1.004, 1.003, 1.002, 1);
+  --spring-soft: linear(0, 0.035, 0.123, 0.241, 0.373, 0.506, 0.631, 0.742, 0.836, 0.912, 0.97, 1.013, 1.041, 1.059, 1.067, 1.068, 1.064, 1.057, 1.049, 1.04, 1.031, 1.023, 1.016, 1.01, 1.005, 1.001, 0.998, 0.997, 0.996, 0.995, 0.995, 0.996, 0.996, 0.997, 1);
+  /* Exit: a hair of anticipation (it lifts first), then down into the rails. */
+  --ease-anticipate: cubic-bezier(0.45, -0.45, 0.75, 0.6);
 }
 
 body {
@@ -241,7 +246,14 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
   display: flex;
   align-items: flex-end;
   pointer-events: none;
+  /* A small forward jolt as each car couples on. The name alternates between
+     breakpoints so every coupling restarts it; --lurch-at lines it up with
+     the moment the new car's chassis lands. */
+  animation: var(--lurch, none) 420ms var(--spring-pop) var(--lurch-at, 0ms);
 }
+
+@keyframes lurch-a { from { translate: 3px 0; } }
+@keyframes lurch-b { from { translate: 3px 0; } }
 
 .track-label {
   text-shadow: var(--halo);
@@ -256,7 +268,7 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
 
 .car {
   --on: 0;            /* 1 = this car's query matches (see Breakpoints) */
-  --poof: poof-out;   /* swapping the name restarts the cloud animation */
+  --poof: poof;       /* dust on the way out; shown cars set none (see Breakpoints) */
 
   position: relative;
   display: none;
@@ -267,7 +279,10 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
   width: calc(var(--w) * var(--on));
   transition:
     width calc(240ms + 120ms * var(--on)) var(--ease-out),
-    display 360ms allow-discrete; /* keep an exiting car around for its poof */
+    display 420ms allow-discrete; /* keep an exiting car around for its poof */
+  /* On the way out the car squashes away in place first, then the gap closes;
+     closing straight away would pile the leaving cars up on each other. */
+  transition-delay: calc(150ms - 150ms * var(--on)), 0ms;
 
   /* Where an arriving car's slot starts. */
   @starting-style { width: 0; }
@@ -275,34 +290,78 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
 
 .car.engine { display: flex; --on: 1; }
 
-/* The car itself: blurry and small inside the cloud, then it pops to full size. */
+/* The car itself. On the way in it just appears, because its parts assemble
+   themselves (see Assembly). On the way out it squashes down into the rails:
+   wider and flatter, after a tiny lift of anticipation, then fades. */
 .car-body {
   display: block;
   flex: none;
   overflow: visible;
   transform-origin: 50% 88%; /* sits on the rails */
   opacity: var(--on);
-  scale: calc(0.6 + 0.4 * var(--on));
-  filter: blur(calc(6px - 6px * var(--on)));
+  scale: calc(1.15 - 0.15 * var(--on)) calc(0.35 + 0.65 * var(--on));
+  filter: blur(calc(3px - 3px * var(--on)));
   transition-property: opacity, scale, filter;
-  transition-duration:
-    calc(140ms + 100ms * var(--on)),
-    calc(180ms + 320ms * var(--on)),
-    calc(140ms + 160ms * var(--on));
-  transition-timing-function: var(--ease-out), var(--ease-pop), var(--ease-out);
-  /* On the way in, let the cloud burst a beat before the car shows up. */
-  transition-delay: calc(70ms * var(--on));
+  transition-duration: 140ms, 220ms, 140ms;
+  transition-timing-function: var(--ease-out), var(--ease-anticipate), var(--ease-out);
+  /* On the way out, let the squash read before it fades. */
+  transition-delay: calc(80ms - 80ms * var(--on)), 0ms, calc(80ms - 80ms * var(--on));
 
-  /* Where an arriving car starts: the --on: 0 values above. */
-  @starting-style { opacity: 0; scale: 0.6; filter: blur(6px); }
+  /* An arriving car starts invisible; its parts hold their own start poses. */
+  @starting-style { opacity: 0; }
+
+  /* Weight: when the next car couples on and its chassis lands, this car dips
+     and springs back, as if the coupling took the load (see Breakpoints). */
+  animation: var(--dip, none) 340ms var(--spring-pop) var(--dip-at, 0ms);
 }
 
-/* ---------- The poof cloud ---------- */
+@keyframes dip { from { translate: 0 3px; } }
+
+/* ---------- Assembly: how an arriving car builds itself ----------
+   Each car's shapes are grouped into parts by the build (index.html), each
+   with a --d delay on a 30ms beat: the chassis lands, wheels go on, the body
+   rises, the roof caps it, windows ripple in away from the engine, and the
+   details come last. Cars arriving together add their --car-offset, so they
+   ripple outward from the engine too. The springs overshoot and settle;
+   squash and stretch fall out of the overshoot. */
+.part {
+  transform-box: fill-box;
+  animation-delay: calc(var(--car-offset, 0ms) + var(--d, 0ms));
+  animation-fill-mode: backwards; /* hold the start pose until it's this part's turn */
+  animation-timing-function: var(--spring-soft);
+  animation-duration: 360ms;
+}
+
+.part--wheel,
+.part--window,
+.part--lantern {
+  transform-origin: 50% 50%;
+  animation-name: part-pop;
+  animation-timing-function: var(--spring-pop);
+  animation-duration: 300ms;
+}
+
+.part--chassis { transform-origin: 50% 50%;  animation-name: part-stretch; animation-duration: 320ms; }
+.part--body    { transform-origin: 50% 100%; animation-name: part-grow; animation-duration: 420ms; }
+.part--stack,
+.part--railing { transform-origin: 50% 100%; animation-name: part-grow; }
+.part--roof,
+.part--cupola  { transform-origin: 50% 100%; animation-name: part-drop; }
+
+@keyframes part-pop     { from { transform: scale(0.25); opacity: 0; } }
+@keyframes part-stretch { from { transform: scale(0.3, 1); opacity: 0; } }
+@keyframes part-grow    { from { transform: scale(1.12, 0.1); opacity: 0; } }
+@keyframes part-drop    { from { transform: translateY(-36px) scale(0.9, 1.25); opacity: 0; } }
+
+/* ---------- The dust puff ----------
+   Only when a car leaves: it squashes down into the rails and leaves a puff of
+   dust behind. (Arriving cars assemble instead, and the landing has weight.)
+   The name flips none → poof as a car leaves, which is what restarts it. */
 
 .poof {
   position: absolute;
   left: 50%;
-  top: 95px; /* centered on the car body */
+  top: 150px; /* centered on the wheels, where the car meets the rails */
   translate: -50% 0;
   z-index: 3;
   overflow: visible;
@@ -314,26 +373,16 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
   stroke: currentColor;
   stroke-width: 4;
   opacity: 0;
-  animation: var(--poof) calc(340ms + 160ms * var(--on)) var(--ease-out) both;
+  animation: var(--poof) 380ms var(--ease-out) both;
 }
 
-/* Where each puff of the cloud flies to. */
-.poof circle:nth-child(1) { --x: -62px; --y: -16px; }
-.poof circle:nth-child(2) { --x: -34px; --y: -50px; }
-.poof circle:nth-child(3) { --x: 6px;   --y: -60px; }
-.poof circle:nth-child(4) { --x: 44px;  --y: -44px; }
-.poof circle:nth-child(5) { --x: 64px;  --y: -8px; }
-.poof circle:nth-child(6) { --x: 0px;   --y: 10px; }
+/* Where each puff of dust drifts: out along the rails, a little upward. */
+.poof circle:nth-child(1) { --x: -78px; --y: -10px; }
+.poof circle:nth-child(2) { --x: -30px; --y: -28px; }
+.poof circle:nth-child(3) { --x: 30px;  --y: -28px; }
+.poof circle:nth-child(4) { --x: 78px;  --y: -10px; }
 
-@keyframes poof-in {
-  0%   { transform: translate(0, 0) scale(0.3); opacity: 0; }
-  12%  { opacity: 1; }
-  45%  { transform: translate(calc(var(--x) * 0.75), calc(var(--y) * 0.75)) scale(1); opacity: 1; }
-  100% { transform: translate(var(--x), var(--y)) scale(0.4); opacity: 0; }
-}
-
-/* Same cloud, separate name, so it can play again when a car leaves. */
-@keyframes poof-out {
+@keyframes poof {
   0%   { transform: translate(0, 0) scale(0.3); opacity: 0; }
   12%  { opacity: 1; }
   45%  { transform: translate(calc(var(--x) * 0.75), calc(var(--y) * 0.75)) scale(1); opacity: 1; }
@@ -360,8 +409,8 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
   scale: var(--smoke-size, 0.8);
   rotate: var(--smoke-lean, 0deg);
   transition:
-    scale 700ms var(--ease-in-out),
-    rotate 700ms var(--ease-in-out);
+    scale 700ms var(--ease-in-out) 380ms,  /* after the car is built (or gone) */
+    rotate 700ms var(--ease-in-out) 380ms;
 }
 
 .smoke,
@@ -369,6 +418,9 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
   display: none;
   animation: smoke-in 500ms var(--ease-out);
 }
+
+/* The kitchen fires up once the dining car has finished building. */
+.steam { animation: smoke-in 500ms var(--ease-out) 620ms both; }
 
 .puff {
   display: none;
@@ -400,8 +452,9 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
   animation: toot 1100ms var(--ease-out) both;
 }
 
-.blast-b { animation-delay: 110ms; }
-.blast-c { animation-delay: 220ms; }
+.blast   { animation-delay: 680ms; } /* once the caboose is built */
+.blast-b { animation-delay: 790ms; }
+.blast-c { animation-delay: 900ms; }
 
 @keyframes toot {
   0%   { transform: translate(176px, 116px) scale(0.2); opacity: 0; }
@@ -441,12 +494,14 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
   to   { transform: scale(2.8); opacity: 0; }
 }
 
-/* The upper deck springs up out of the roof. */
+/* The upper deck springs up out of the roof when the track gets tall enough.
+   When a whole car arrives, the deck's own parts assemble in sequence instead
+   (they're inside the deck's <g>, which Chrome doesn't restart on its own). */
 .deck {
   display: none;
   transform-box: fill-box;
   transform-origin: 50% 100%;
-  animation: deck-up 520ms var(--ease-pop) both;
+  animation: deck-up 520ms var(--spring-pop) both;
 }
 
 @keyframes deck-up {
@@ -596,26 +651,34 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
    after the base rules above so they win at equal specificity. */
 
 @container track (min-width: 480px) {
-  .car.p1 { display: flex; --on: 1; --poof: poof-in; }
+  .car.p1 { display: flex; --on: 1; --poof: none; }
   .engine { --smoke-size: 0.9; --smoke-lean: -6deg; } /* more cars: the engine works harder */
+  .engine { --dip: dip; --dip-at: 40ms; }             /* the car being coupled onto dips */
+  .train  { --lurch: lurch-a; --lurch-at: 40ms; }
   .mark--480 { --reached: 1; --icon: "✓ "; }
 }
 
 @container track (min-width: 680px) {
-  .car.p2 { display: flex; --on: 1; --poof: poof-in; }
+  .car.p2 { display: flex; --on: 1; --poof: none; }
   .engine { --smoke-size: 1; --smoke-lean: -12deg; }
+  .car.p1 { --dip: dip; --dip-at: 80ms; }
+  .train  { --lurch: lurch-b; --lurch-at: 80ms; }
   .mark--680 { --reached: 1; --icon: "✓ "; }
 }
 
 @container track (min-width: 880px) {
-  .car.dining { display: flex; --on: 1; --poof: poof-in; }
+  .car.dining { display: flex; --on: 1; --poof: none; }
   .engine { --smoke-size: 1.08; --smoke-lean: -18deg; }
+  .car.p2 { --dip: dip; --dip-at: 120ms; }
+  .train  { --lurch: lurch-a; --lurch-at: 120ms; }
   .mark--880 { --reached: 1; --icon: "✓ "; }
 }
 
 @container track (min-width: 1050px) {
-  .car.caboose { display: flex; --on: 1; --poof: poof-in; }
+  .car.caboose { display: flex; --on: 1; --poof: none; }
   .engine { --smoke-size: 1.15; --smoke-lean: -24deg; }
+  .car.dining { --dip: dip; --dip-at: 160ms; }
+  .train  { --lurch: lurch-b; --lurch-at: 160ms; }
   .mark--1050 { --reached: 1; --icon: "✓ "; }
 }
 
@@ -640,5 +703,5 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
   .car, .car-body, .smoke, .track, .track.is-jumping, .track::before, .track::after, .handle,
   .level, .mark, .tick, .level::before, .mark::before, .tick::before { transition: none; }
 
-  .poof circle, .smoke, .steam, .puff, .wisp, .blast, .lantern-glow, .deck { animation: none; }
+  .poof circle, .part, .train, .car-body, .smoke, .steam, .puff, .wisp, .blast, .lantern-glow, .deck { animation: none; }
 }
