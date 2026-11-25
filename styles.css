@@ -89,6 +89,8 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
 /* ---------- Rig: handles + track, scaled up around the rails ---------- */
 
 .rig {
+  --start-h: 250px; /* the track's starting height (script.js reads the track's size) */
+
   position: absolute;
   z-index: 2;
   left: 50%;
@@ -136,8 +138,8 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
 }
 
 /* Pinned to the rails, not centered on the track: they only ever move sideways.
-   Their middle sits 125px up, the middle of the track at its starting height. */
-.hx { width: 40px; height: 92px; margin-bottom: calc(125px - 92px / 2); cursor: ew-resize; }
+   Their middle sits level with the middle of the track at its starting height. */
+.hx { width: 40px; height: 92px; margin-bottom: calc(var(--start-h) / 2 - 92px / 2); cursor: ew-resize; }
 .hx .grip { width: 16px; height: 24px; }
 
 .hy { z-index: 2; width: 92px; height: 40px; cursor: ns-resize; }
@@ -174,7 +176,7 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
   container: track / size;
   position: relative;
   width: 320px;  /* the starting size; script.js reads it from here */
-  height: 250px;
+  height: var(--start-h);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -223,22 +225,25 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
     border-color var(--edge-speed) ease;
 }
 
-.sleepers {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 4px;
-  height: 12px;
-  background: var(--sleepers);
-}
-
-.rail {
+/* The rail and sleepers, shared with the ghost track (.ruler) so they line up. */
+.rail,
+.ruler::before {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 14px;
   height: 6px;
   background: var(--ink);
+}
+
+.sleepers,
+.ruler::after {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 4px;
+  height: 12px;
+  background: var(--sleepers);
 }
 
 .train {
@@ -262,6 +267,7 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
 .car {
   --on: 0;            /* 1 = this car's query matches (see Breakpoints) */
   --poof: poof;       /* dust on the way out; shown cars set none (see Breakpoints) */
+  --settle: settle;   /* eases back when the car behind leaves; off while one is coupled on */
 
   position: relative;
   display: none;
@@ -283,10 +289,7 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
 
 .car.engine { display: flex; --on: 1; }
 
-/* The last car on the train settles when the car behind it leaves (the
-   Breakpoints switch this off for a car once something couples on behind it). */
-.car { --settle: settle; }
-.car.caboose { --settle: none; }
+.car.caboose { --settle: none; } /* nothing ever couples on behind it */
 
 /* The car itself. On the way in it just appears, because its parts assemble
    themselves (see Assembly). On the way out it squashes down into the rails:
@@ -315,30 +318,21 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
      coupling lets go.
 
      CSS only knows the track's size, not which way you dragged, so direction
-     comes from when names appear. Each coupling has its own animation slot,
-     named only while its car is on, so it starts when you widen past it and
-     doesn't replay when you shrink back. The settle's name appears only once
-     the car behind has gone, so it plays on the way out. Values per car are
-     in Breakpoints. */
-  animation-name:
-    var(--settle, none),
-    var(--shunt-480, none), var(--shunt-680, none), var(--shunt-880, none), var(--shunt-1050, none);
-  animation-duration: 360ms, 340ms, 340ms, 340ms, 340ms;
-  animation-timing-function: var(--spring-soft), var(--spring-pop), var(--spring-pop), var(--spring-pop), var(--spring-pop);
+     comes from when names appear. --roll is named only while the car is on,
+     so it plays when you widen past the car's breakpoint and never when you
+     shrink back. --settle is named only once the car behind has gone, so it
+     plays on the way out. */
+  animation-name: var(--settle, none), var(--roll, none);
+  animation-duration: 360ms, 340ms;
+  animation-timing-function: var(--spring-soft), var(--spring-pop);
   animation-delay:
-    80ms, /* as the leaving car squashes away */
-    var(--at-480, 0ms), var(--at-680, 0ms), var(--at-880, 0ms), var(--at-1050, 0ms);
-  /* The arriving car holds its "short of the spot" offset until it rolls in. */
-  animation-fill-mode:
-    none, var(--fill-480, none), var(--fill-680, none), var(--fill-880, none), var(--fill-1050, none);
+    80ms,                                 /* as the leaving car squashes away */
+    calc(var(--car-offset, 0ms) + 280ms); /* once its body and roof are on */
+  animation-fill-mode: none, backwards;   /* hold short of the spot until it rolls in */
 }
 
-/* One keyframe set per coupling, so their slots stay independent. */
-@keyframes shunt-480  { from { translate: var(--dx-480) 0; } }
-@keyframes shunt-680  { from { translate: var(--dx-680) 0; } }
-@keyframes shunt-880  { from { translate: var(--dx-880) 0; } }
-@keyframes shunt-1050 { from { translate: var(--dx-1050) 0; } }
-@keyframes settle     { from { translate: -2px 0; } }
+@keyframes roll   { from { translate: -8px 0; } }
+@keyframes settle { from { translate: -2px 0; } }
 
 /* ---------- Assembly: how an arriving car builds itself ----------
    Each car's shapes are grouped into parts by the build (index.html), each
@@ -349,6 +343,7 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
    squash and stretch fall out of the overshoot. */
 .part {
   transform-box: fill-box;
+  transform-origin: 50% 100%;
   animation-delay: calc(var(--car-offset, 0ms) + var(--d, 0ms));
   animation-fill-mode: backwards; /* hold the start pose until it's this part's turn */
   animation-timing-function: var(--spring-soft);
@@ -364,12 +359,12 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
   animation-duration: 300ms;
 }
 
-.part--chassis { transform-origin: 50% 50%;  animation-name: part-stretch; animation-duration: 320ms; }
-.part--body    { transform-origin: 50% 100%; animation-name: part-grow; animation-duration: 420ms; }
+.part--chassis { transform-origin: 50% 50%; animation-name: part-stretch; animation-duration: 320ms; }
+.part--body    { animation-name: part-grow; animation-duration: 420ms; }
 .part--stack,
-.part--railing { transform-origin: 50% 100%; animation-name: part-grow; }
+.part--railing { animation-name: part-grow; }
 .part--roof,
-.part--cupola  { transform-origin: 50% 100%; animation-name: part-drop; }
+.part--cupola  { animation-name: part-drop; }
 
 @keyframes part-pop     { from { transform: scale(0.25); opacity: 0; } }
 @keyframes part-stretch { from { transform: scale(0.3, 1); opacity: 0; } }
@@ -437,13 +432,13 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
 }
 
 .smoke,
-.steam {
-  display: none;
-  animation: smoke-in 500ms var(--ease-out);
-}
+.steam { display: none; }
 
-/* The kitchen fires up once the dining car has finished building. */
-.steam { animation: smoke-in 500ms var(--ease-out) 620ms both; }
+.smoke { animation: smoke-in 500ms var(--ease-out); }
+
+/* The kitchen fires up once the dining car has finished building: its last
+   part lands 240ms in and pops for 300ms. */
+.steam { animation: smoke-in 500ms var(--ease-out) calc(var(--car-offset, 0ms) + 540ms) both; }
 
 .puff {
   display: none;
@@ -469,15 +464,16 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
 /* Caboose coupled on AND tall enough for smoke: the engine lets out one
    celebratory toot. Two conditions, one container query. */
 .blast {
+  --blast-at: 680ms; /* once the caboose is built */
+
   display: none;
   transform-origin: 0 0;
   opacity: 0;
-  animation: toot 1100ms var(--ease-out) both;
+  animation: toot 1100ms var(--ease-out) var(--blast-at) both;
 }
 
-.blast   { animation-delay: 680ms; } /* once the caboose is built */
-.blast-b { animation-delay: 790ms; }
-.blast-c { animation-delay: 900ms; }
+.blast-b { animation-delay: calc(var(--blast-at) + 110ms); }
+.blast-c { animation-delay: calc(var(--blast-at) + 220ms); }
 
 @keyframes toot {
   0%   { transform: translate(176px, 116px) scale(0.2); opacity: 0; }
@@ -553,31 +549,44 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
   cursor: pointer;
 }
 
-/* Height: dashed level lines, like water marks on a pier. Faint until the
-   track's top edge reaches them, then full strength. */
-.level {
+/* Every threshold (height level or width mark) is faint until the track
+   reaches it, then full strength. The Breakpoints flip --reached. */
+.level,
+.mark,
+.tick {
   --reached: 0;
+  color: color-mix(in srgb, var(--ink) calc(var(--reached) * 100%), var(--muted));
+  opacity: calc(0.35 + 0.65 * var(--reached));
+  transition: opacity 200ms ease, color 200ms ease;
+}
+
+/* Their dashed guide lines run across the whole screen (the stage clips them)
+   and only show while you're resizing. */
+.level::before,
+.mark::before,
+.tick::before {
+  content: "";
+  position: absolute;
+  pointer-events: none; /* only the labels are clickable, not the lines */
+  opacity: var(--grid);
+  transition: opacity var(--edge-speed) ease;
+}
+
+/* Height: dashed level lines, like water marks on a pier. */
+.level {
   --icon: "↑ ";
 
   position: absolute;
   left: 0;
   right: 0;
   bottom: var(--at);
-  color: color-mix(in srgb, var(--ink) calc(var(--reached) * 100%), var(--muted));
-  opacity: calc(0.35 + 0.65 * var(--reached));
-  transition: opacity 200ms ease, color 200ms ease;
 }
 
-/* The line itself runs edge to edge across the screen (the stage clips it). */
 .level::before {
-  content: "";
-  position: absolute;
   left: -100vw;
   right: -100vw;
   top: -1px;
   border-top: 2px dashed var(--dash);
-  opacity: var(--grid);
-  transition: opacity var(--edge-speed) ease;
 }
 
 .level-label {
@@ -590,7 +599,8 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
   white-space: nowrap;
 }
 
-.level-label::before { content: var(--icon); }
+.level-label::before,
+.mark-px::before { content: var(--icon); }
 
 /* Width: the rails double as the ruler. Inside the container they're the real
    track; past its edges they carry on as a faint ghost track across the screen,
@@ -603,31 +613,21 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
   height: 20px; /* the rail + sleeper band */
 }
 
+/* The ghost rail and sleepers (geometry shared with .rail and .sleepers). */
 .ruler::before,
 .ruler::after {
   content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
   opacity: 0.15;
 }
 
-.ruler::before { top: 0; height: 6px; background: var(--ink); }    /* rail */
-.ruler::after  { bottom: 4px; height: 12px; background: var(--sleepers); }
-
-/* Each width breakpoint is a vertical dashed line at both edges it applies to
-   (a labelled .mark on the left, a bare .tick on the right). Like the level
-   lines, they're faint until the container's edges reach them. */
+/* Width: each breakpoint is a vertical dashed line at both edges it applies
+   to (a labelled .mark on the left, a bare .tick on the right). */
 .mark,
 .tick {
-  --reached: 0;
   --icon: "← ";
 
   position: absolute;
   top: calc(100% + 10px); /* labels sit below the rail */
-  color: color-mix(in srgb, var(--ink) calc(var(--reached) * 100%), var(--muted));
-  opacity: calc(0.35 + 0.65 * var(--reached));
-  transition: opacity 200ms ease, color 200ms ease;
 }
 
 .tick { left: calc(50% + var(--at) / 2); }
@@ -643,22 +643,15 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
   line-height: 1.25;
 }
 
-/* The line itself runs the full height of the screen (the stage clips it). */
 .mark::before,
 .tick::before {
-  content: "";
-  position: absolute;
   top: -150vh;
   left: -1px;
   height: 300vh;
   border-left: 2px dashed var(--dash);
-  pointer-events: none; /* only the label is clickable, not the whole line */
-  opacity: var(--grid);
-  transition: opacity var(--edge-speed) ease;
 }
 
 .mark-px   { font-family: var(--font-mono); font-size: 12px; }
-.mark-px::before { content: var(--icon); }
 .mark-name { font-size: 12px; font-weight: 800; white-space: nowrap; }
 
 @media (hover: hover) and (pointer: fine) {
@@ -674,39 +667,30 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
    after the base rules above so they win at equal specificity. */
 
 @container track (min-width: 480px) {
-  .car.p1 { display: flex; --on: 1; --poof: none; }
-  .engine { --smoke-size: 0.9; --smoke-lean: -6deg; } /* more cars: the engine works harder */
+  .car.p1 { display: flex; --on: 1; --poof: none; --roll: roll; }
+  .engine { --smoke-size: 0.9; --smoke-lean: -6deg; --settle: none; } /* more cars: the engine works harder */
   .mark--480 { --reached: 1; --icon: "✓ "; }
-  /* p1 rolls into the coupling. */
-  .car.p1      { --shunt-480: shunt-480; --at-480: 280ms; --dx-480: -8px; --fill-480: backwards; }
-  .engine      { --settle: none; } /* no longer the last car */
 }
 
 @container track (min-width: 680px) {
-  .car.p2 { display: flex; --on: 1; --poof: none; }
+  .car.p2 { display: flex; --on: 1; --poof: none; --roll: roll; }
   .engine { --smoke-size: 1; --smoke-lean: -12deg; }
   .mark--680 { --reached: 1; --icon: "✓ "; }
-  /* p2 rolls into the coupling. */
-  .car.p2      { --shunt-680: shunt-680; --at-680: 320ms; --dx-680: -8px; --fill-680: backwards; }
-  .car.p1      { --settle: none; } /* no longer the last car */
+  .car.p1 { --settle: none; } /* no longer the last car */
 }
 
 @container track (min-width: 880px) {
-  .car.dining { display: flex; --on: 1; --poof: none; }
+  .car.dining { display: flex; --on: 1; --poof: none; --roll: roll; }
   .engine { --smoke-size: 1.08; --smoke-lean: -18deg; }
   .mark--880 { --reached: 1; --icon: "✓ "; }
-  /* dining rolls into the coupling. */
-  .car.dining  { --shunt-880: shunt-880; --at-880: 360ms; --dx-880: -8px; --fill-880: backwards; }
-  .car.p2      { --settle: none; } /* no longer the last car */
+  .car.p2 { --settle: none; } /* no longer the last car */
 }
 
 @container track (min-width: 1050px) {
-  .car.caboose { display: flex; --on: 1; --poof: none; }
+  .car.caboose { display: flex; --on: 1; --poof: none; --roll: roll; }
   .engine { --smoke-size: 1.15; --smoke-lean: -24deg; }
   .mark--1050 { --reached: 1; --icon: "✓ "; }
-  /* caboose rolls into the coupling. */
-  .car.caboose { --shunt-1050: shunt-1050; --at-1050: 400ms; --dx-1050: -8px; --fill-1050: backwards; }
-  .car.dining  { --settle: none; } /* no longer the last car */
+  .car.dining { --settle: none; } /* no longer the last car */
 }
 
 @container track (min-height: 310px) {
