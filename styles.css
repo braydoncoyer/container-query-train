@@ -310,10 +310,9 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
 
   /* Weight. Couplings move cars along the track, not up and down.
      Arriving: the new car builds a few px short of its spot, then rolls
-     forward into the coupling. The shove runs on through the train: each car
-     ahead jolts forward and clanks back on a stiff spring, 40ms after the one
-     behind it and a little smaller. Leaving: the car left at the back eases
-     back a hair as the coupling lets go.
+     forward into the coupling on a stiff spring. The rest of the train stays
+     still. Leaving: the car left at the back eases back a hair as the
+     coupling lets go.
 
      CSS only knows the track's size, not which way you dragged, so direction
      comes from when names appear. Each coupling has its own animation slot,
@@ -678,9 +677,8 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
   .car.p1 { display: flex; --on: 1; --poof: none; }
   .engine { --smoke-size: 0.9; --smoke-lean: -6deg; } /* more cars: the engine works harder */
   .mark--480 { --reached: 1; --icon: "✓ "; }
-  /* p1 rolls into the coupling, then the shove runs on to the engine. */
+  /* p1 rolls into the coupling. */
   .car.p1      { --shunt-480: shunt-480; --at-480: 280ms; --dx-480: -8px; --fill-480: backwards; }
-  .engine      { --shunt-480: shunt-480; --at-480: 320ms; --dx-480: 3px; }
   .engine      { --settle: none; } /* no longer the last car */
 }
 
@@ -688,10 +686,8 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
   .car.p2 { display: flex; --on: 1; --poof: none; }
   .engine { --smoke-size: 1; --smoke-lean: -12deg; }
   .mark--680 { --reached: 1; --icon: "✓ "; }
-  /* p2 rolls into the coupling, then the shove runs on to the engine. */
+  /* p2 rolls into the coupling. */
   .car.p2      { --shunt-680: shunt-680; --at-680: 320ms; --dx-680: -8px; --fill-680: backwards; }
-  .car.p1      { --shunt-680: shunt-680; --at-680: 360ms; --dx-680: 3px; }
-  .engine      { --shunt-680: shunt-680; --at-680: 400ms; --dx-680: 2.2px; }
   .car.p1      { --settle: none; } /* no longer the last car */
 }
 
@@ -699,11 +695,8 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
   .car.dining { display: flex; --on: 1; --poof: none; }
   .engine { --smoke-size: 1.08; --smoke-lean: -18deg; }
   .mark--880 { --reached: 1; --icon: "✓ "; }
-  /* dining rolls into the coupling, then the shove runs on to the engine. */
+  /* dining rolls into the coupling. */
   .car.dining  { --shunt-880: shunt-880; --at-880: 360ms; --dx-880: -8px; --fill-880: backwards; }
-  .car.p2      { --shunt-880: shunt-880; --at-880: 400ms; --dx-880: 3px; }
-  .car.p1      { --shunt-880: shunt-880; --at-880: 440ms; --dx-880: 2.2px; }
-  .engine      { --shunt-880: shunt-880; --at-880: 480ms; --dx-880: 1.6px; }
   .car.p2      { --settle: none; } /* no longer the last car */
 }
 
@@ -711,12 +704,8 @@ body:has(.hy:is(.is-pressed, .is-dragging)) { cursor: ns-resize; user-select: no
   .car.caboose { display: flex; --on: 1; --poof: none; }
   .engine { --smoke-size: 1.15; --smoke-lean: -24deg; }
   .mark--1050 { --reached: 1; --icon: "✓ "; }
-  /* caboose rolls into the coupling, then the shove runs on to the engine. */
+  /* caboose rolls into the coupling. */
   .car.caboose { --shunt-1050: shunt-1050; --at-1050: 400ms; --dx-1050: -8px; --fill-1050: backwards; }
-  .car.dining  { --shunt-1050: shunt-1050; --at-1050: 440ms; --dx-1050: 3px; }
-  .car.p2      { --shunt-1050: shunt-1050; --at-1050: 480ms; --dx-1050: 2.2px; }
-  .car.p1      { --shunt-1050: shunt-1050; --at-1050: 520ms; --dx-1050: 1.6px; }
-  .engine      { --shunt-1050: shunt-1050; --at-1050: 560ms; --dx-1050: 1.2px; }
   .car.dining  { --settle: none; } /* no longer the last car */
 }
 
